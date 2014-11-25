@@ -1,0 +1,1029 @@
+PARSER_BEGIN(EPLOAM)
+import java.util.*;
+import java.io.*;
+
+public class EPLOAM{
+    static String cadSalida = new String();
+    static String nombreArchivoEntrada = new String();
+    static TablaSimbolos tabla = new TablaSimbolos();
+    static int nroErrores=0;
+    static int nivelAnidamiento=0;
+    static boolean cerrarComparacion=false;
+    static int BUENA_EJECUCION=1;
+    static int MALA_EJECUCION=0;
+    static boolean salidaConsola = true;
+    static boolean errorCompilacion = false;
+
+
+    public static void main(String args[]) throws ParseException {
+        FileWriter fichero = null;
+        PrintWriter pw = null;
+        File archivo = null;
+        FileReader fr = null;
+        String archivoSalida;
+        int estadoProceso = MALA_EJECUCION;
+
+        creditos();
+        try
+        {
+            if (args.length <3){
+                System.out.println("\n\n....No se indico el archivo a procesar");
+                System.exit(1);
+            }else{
+                if (args.length==4){
+                    salidaConsola = false;
+                    System.out.println("<table border=\"1\">\n");
+                    System.out.println("<tr bgcolor=\"#C0C0C0\"><th width=\"10%\">Linea</th><th width=\"10%\">Columna</th><th>Descripcion</th></tr>\n");
+                }
+                nombreArchivoEntrada = args[0];
+                archivo=new File(args[1]+"\\"+nombreArchivoEntrada+".epl");
+                archivoSalida=args[2]+"\\"+args[0]+".java";
+                fr = new FileReader (archivo);
+                new EPLOAM(fr).gramatica();
+                if (nroErrores>0){
+                    mensajeFinal("\n\nProceso de traduccion con "+nroErrores+" errores"+
+                                        "\n....No se generara archivo "+archivoSalida);
+                } else {
+                    mensajeFinal("\n\nProceso de traduccion sin errores"+
+                                        "\n....See generara archivo "+archivoSalida);
+                    fichero = new FileWriter(archivoSalida);
+                    pw = new PrintWriter(fichero);
+                    pw.println(cadSalida);
+                    estadoProceso=BUENA_EJECUCION;
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            if (!salidaConsola){
+                System.out.println("</table>\n");
+            }
+           try {
+           // Nuevamente aprovechamos el finally para
+           // asegurarnos que se cierra el fichero.
+           if (null != fichero)
+              fichero.close();
+           } catch (Exception e2) {
+              e2.printStackTrace();
+           }
+           System.exit(estadoProceso);
+        }
+    }
+
+    private static String nuevaLinea(){
+        String cadAux;
+        cadAux="\n";
+
+        if (nivelAnidamiento<0){
+            nroErrores++;
+            System.out.println("\n\n Error interno en el anidamiento de instrucciones");
+        } else {
+            for (int i=0; i<nivelAnidamiento; i++) cadAux+="   ";
+        }
+        return cadAux;
+    }
+
+    private static void despliegaError(String mensaje){
+        int inicioLinea = token.beginLine;
+        int inicioColumna = token.beginColumn;
+
+        nroErrores++;
+        if (salidaConsola){
+            System.out.println("Error linea:"+inicioLinea+" columna:"+inicioColumna+
+                                " - "+mensaje);
+        }else{
+            if (nroErrores%2==0){
+                System.out.println("<tr bgcolor=\"#D9C0DC\"><td align=\"center\">"+inicioLinea+"</td><td align=\"center\">"+
+                                    inicioColumna+"</td><td>"+mensaje+"</td></tr>");
+            }else{
+                System.out.println("<tr bgcolor=\"#8AB6D0\"><td align=\"center\">"+inicioLinea+"</td><td align=\"center\">"+
+                                    inicioColumna+"</td><td>"+mensaje+"</td></tr>");
+            }
+
+        }
+    }
+
+    private static void mensajeFinal(String mensaje){
+        if (salidaConsola){
+            System.out.println(mensaje);
+        }else{
+            System.out.println("<tr bgcolor=\"D9DAE6\"><td colspan=\"3\">"+mensaje+"</td></tr>");
+        }
+    }
+
+    private static void creditos(){
+        System.out.println("\n   ========================================================================"+
+                           "\n   = the Easiest Programming Language, created by Orlando Arboleda Molina ="+
+                           "\n   =                            EPLOAM version 1.0                        ="+
+                           "\n   =                                 25/05/2010                           ="+
+                           "\n   =                                                                      ="+
+                           "\n   = Created and Implemented by: Orlando Arboleda Molina, MSc.            ="+
+                           "\n   =                             orarbole@hotmail.com                     ="+
+                           "\n   ========================================================================");
+    }
+
+    private static char tipoOR_AND(char tipoe1, char tipoe2) {
+        if ((tipoe1 == Simbolo.tipoBooleano) && (tipoe2 == Simbolo.tipoBooleano)) {
+            return Simbolo.tipoBooleano;
+        } else {
+            return Simbolo.tipoIndefinido;
+        }
+    }
+
+    private static char tipoIGUAL_DIFERENTE(char tipoe1, char tipoe2) {
+        if (tipoe1==tipoe2){
+            return Simbolo.tipoBooleano;
+        }else{
+            if (tipoe1==Simbolo.tipoEntero && tipoe2==Simbolo.tipoReal) {
+                return Simbolo.tipoBooleano;
+            } else {
+                if (tipoe1==Simbolo.tipoReal && tipoe2==Simbolo.tipoReal) {
+                    return Simbolo.tipoBooleano;
+                } else {
+                    return Simbolo.tipoIndefinido;
+                }
+            }
+        }
+    }
+
+    private static char tipoSUMA_RESTA(char tipoe1, char tipoe2) {
+        if (tipoe1==Simbolo.tipoCadena || tipoe2==Simbolo.tipoCadena){
+            return Simbolo.tipoCadena;
+        }else{
+            if (tipoe1==Simbolo.tipoEntero && tipoe2==Simbolo.tipoEntero) {
+                return Simbolo.tipoEntero;
+            } else {
+                if ((tipoe1==Simbolo.tipoEntero && tipoe2==Simbolo.tipoReal) ||
+                    (tipoe1==Simbolo.tipoReal && (tipoe2==Simbolo.tipoEntero || tipoe2==Simbolo.tipoReal))
+                   ) {
+                    return Simbolo.tipoReal;
+                } else {
+                    return Simbolo.tipoIndefinido;
+                }
+            }
+        }
+    }
+
+    private static char tipoMULTIPLICA_DIVIDA(char tipoe1, char tipoe2) {
+        if (tipoe1==Simbolo.tipoEntero && tipoe2==Simbolo.tipoEntero){
+            return Simbolo.tipoEntero;
+        }else{
+            if ((tipoe1==Simbolo.tipoEntero && tipoe2==Simbolo.tipoReal) ||
+                (tipoe1==Simbolo.tipoReal && (tipoe2==Simbolo.tipoEntero || tipoe2==Simbolo.tipoReal))
+               ) {
+                return Simbolo.tipoReal;
+            } else {
+                return Simbolo.tipoIndefinido;
+            }
+        }
+    }
+}
+PARSER_END(EPLOAM)
+
+SKIP : {
+     " "
+     | "\t"
+     | "\r"
+     | "\n"
+ }
+
+//TOKEN [IGNORE_CASE] :
+TOKEN :
+{
+       <PRINCIPAL: "principal">
+     | <ALGORITMO: "algoritmo">
+
+     | <TIPOENTERO: "entero">
+     | <TIPOREAL: "real">
+     | <TIPOCARACTER: "caracter">
+     | <TIPOBOOLEANO: "booleano">
+     | <TIPOCADENA: "cadena">
+
+     | <PAREN_ABRE: "(">
+     | <PAREN_CIERRA: ")">
+     | <LLAVE_ABRE: "{">
+     | <LLAVE_CIERRA: "}">
+     | <PUNTOYCOMA: ";">
+     | <DOSPUNTOS: ":">
+     | <COMA: ",">
+
+     | <LEER: "leer">
+     | <IMPRIMIR: "imprimir">
+
+     | <SI: "si">
+     | <SINO: "sino">
+     | <SEGUN: "segun">
+     | <CASO: "caso">
+     | <OTROCASO: "otroCaso">
+     | <ROMPA: "termina">
+
+     | <PARA: "para">
+     | <MIENTRAS: "mientras">
+     | <HAGA: "haga">
+
+     | <BOOLEANO: ("true" | "false")>
+     | <ID: <LETRA>("_"|<LETRA>|<DIGITO>)*>
+     | <ENTERO: (<DIGITO>)+>
+     | <REAL: <ENTERO>"."<ENTERO>>
+     | <CADENA: "\""(~["\""])*"\"">
+     | <COMENTARIO: "/*" (~["*"])* "*" (~["/"] (~["*"])* "*")* "/">
+     | <CARACTER: "'"<LETRA>"\'">
+     | <#LETRA: ["A"-"Z","a"-"z"]>
+     | <#DIGITO: ["0"-"9"]>
+
+     | <MASMAS: "++">
+     | <MENOSMENOS: "--">
+     | <MASIGUAL: "+=">
+     | <MENOSIGUAL: "-=">
+     | <PORIGUAL: "*=">
+     | <DIVIGUAL: "/=">
+
+     | <MAS: "+">
+     | <MENOS: "-">
+     | <POR: "*">
+     | <DIVIDIDO: "/">
+     | <MODULO: "%">
+
+     | <OR: "||">
+     | <AND: "&&">
+     | <IGUALLOGICO: "==">
+     | <DIFERENTELOGICO: "!=">
+     | <MAYORIGUAL: ">=">
+     | <MENORIGUAL: "<=">
+     | <MAYOR: ">">
+     | <MENOR: "<">
+     | <IGUAL: "=">
+ }
+
+/*
+gramatica ::= encabezado metodoPrincipal cierre
+*/
+void gramatica():{
+}{
+    encabezado()
+    metodoPrincipal()
+    cierre()
+}
+
+/*
+encabezado ::=
+*/
+void encabezado():{
+    String nombreArchivo;
+    String cadComentario=new String();
+}{
+    try {
+            {
+                cadSalida+="import javax.swing.JOptionPane;\n/**\n*"+
+                "\n* @author Compilador Lenguaje EPLOAM\n*/\n\n";
+            }
+            ( cadComentario=comentario() )?
+            <ALGORITMO> <ID> {
+                                nombreArchivo=new String(token.image);
+                                if (!nombreArchivo.equals(nombreArchivoEntrada)) {
+                                    despliegaError("El nombre del archivo de entrada no coincide con el nombre del programa");
+                                }
+                             }
+            <LLAVE_ABRE> {
+                          cadSalida+="public class "+nombreArchivo+" {";
+                          nivelAnidamiento++;
+                         }
+    }catch(ParseException x){
+        despliegaError("Todo algoritmo debe iniciar con algoritmo"+
+                                   " NombreAlgoritmo { \n\t");
+        Token t;
+        do
+        {
+            t = getNextToken();
+        }while (t.kind != LLAVE_ABRE);
+    }
+}
+
+/*
+finPrincipal ::=
+*/
+void finPrincipal():{}{
+    try {
+        <LLAVE_CIERRA> { nivelAnidamiento--; cadSalida+=nuevaLinea()+" }";  nivelAnidamiento--;}
+    }catch(ParseException x){
+        despliegaError("Falta llave de finalizacion del metodo principal");
+    }
+}
+
+/*
+metodoPrincipal ::=
+*/
+void metodoPrincipal():{}{
+    encabezadoPrincipal()
+    declaraciones()
+    cuerpo()
+    finPrincipal()
+}
+
+/*
+encabezadoPrincipal ::=
+*/
+void encabezadoPrincipal():{}{
+    try {
+        <PRINCIPAL>
+        <PAREN_ABRE>
+        <PAREN_CIERRA>
+        <LLAVE_ABRE> {  cadSalida+=nuevaLinea()+" public static void main(String[] args) {";
+                        nivelAnidamiento++;
+                     }
+    }catch(ParseException x){
+        despliegaError("Error al definir el encabezado del metodo principal");
+        Token t;
+        do
+        {
+            t = getNextToken();
+        }while (t.kind != LLAVE_ABRE);
+    }
+}
+
+
+/*
+declaraciones ::=
+*/
+void declaraciones():{}{
+    (declaracion())*
+    { cadSalida+="\n"; }
+}
+
+/*
+declaraVariable ::=
+*/
+void declaraVariable(char tipo):{
+    Simbolo s;
+    char tipoExpr;
+}{
+    s=obtenerVariable(tipo)
+    (
+        <IGUAL> { cadSalida+="="; }
+        tipoExpr=expr()
+        {
+            if (s.tipo!=tipoExpr) {
+                despliegaError("Error en la declaracion de variables - No hay coincidencia de tipos");
+            }else{
+                s.inicializado();
+            }
+        }
+    )?
+}
+
+/*
+declaracion ::=
+*/
+void declaracion():{
+    char tipoVariable;
+}{
+    try {
+        (
+            <TIPOENTERO> {cadSalida+=nuevaLinea()+" int "; tipoVariable=Simbolo.tipoEntero; }
+          |
+            <TIPOREAL> {cadSalida+=nuevaLinea()+" double "; tipoVariable=Simbolo.tipoReal; }
+          |
+            <TIPOCADENA> {cadSalida+=nuevaLinea()+" String "; tipoVariable=Simbolo.tipoCadena; }
+          |
+            <TIPOBOOLEANO> {cadSalida+=nuevaLinea()+" boolean ";  tipoVariable=Simbolo.tipoBooleano; }
+          |
+            <TIPOCARACTER> {cadSalida+=nuevaLinea()+" char ";  tipoVariable=Simbolo.tipoCaracter; }
+        )
+        declaraVariable(tipoVariable)
+        (<COMA> { cadSalida+=",";} declaraVariable(tipoVariable)  )*
+        <PUNTOYCOMA> {cadSalida+=";";}
+    }catch(ParseException x){
+        despliegaError("Error en la declaracion de variables");
+        Token t;
+        do
+        {
+            t = getNextToken();
+        }while (t.kind != PUNTOYCOMA);
+    }
+}
+
+/*
+obtenerVariable ::=
+*/
+Simbolo obtenerVariable(char tipo):{}{
+    <ID> {
+        Simbolo s;
+        if ((s = tabla.buscar(token.image)) != null){
+            despliegaError("Variable "+token.image+ " ya se habia declarado");
+        } else {
+            cadSalida+=token.image;
+            s=tabla.insertar(token.image,tipo);
+        }
+        return s;
+    }
+}
+
+/*
+validarVariable ::=
+*/
+Simbolo validarVariable():{}{
+    <ID> {
+        Simbolo s;
+        if ((s = tabla.buscar(token.image)) == null){
+            despliegaError("Variable "+token.image+ " no se habia definido");
+            throw new ParseException("error en validarVariable");
+        } else{
+            cadSalida+=token.image;
+        }
+        return s;
+    }
+}
+
+/*
+cuerpo ::=
+*/
+void cuerpo():{}{
+    ( LOOKAHEAD(3)
+          asignacion()
+        | lectura()
+        | impresion()
+        | decision()
+        | repeticion()
+    )+
+}
+
+/*
+inicializacion ::=
+*/
+void inicializacionPARA():{
+    Object resultado;
+    char tipoExpr;
+    Simbolo s;
+}{
+    try{
+        (
+            <TIPOENTERO> { cadSalida+=" int "; }
+            s=obtenerVariable(Simbolo.tipoEntero)
+            <IGUAL> { cadSalida+="="; }
+            tipoExpr=expr() {
+                                if (tipoExpr!=Simbolo.tipoEntero) {
+                                    despliegaError("El valor asignado en la inicializacion del ciclo PARA no es Entero");
+                                }else{
+                                    s.inicializado();
+                                }
+                            }
+        |
+            <TIPOREAL> { cadSalida+=" double "; }
+            s=obtenerVariable(Simbolo.tipoReal)
+            <IGUAL> { cadSalida+="="; }
+            tipoExpr=expr() {
+                                if (tipoExpr!=Simbolo.tipoReal) {
+                                    despliegaError("El valor asignado en la inicializacion del ciclo PARA no es Real");
+                                }else{
+                                    s.inicializado();
+                                }
+                            }
+        )
+        <PUNTOYCOMA> { cadSalida+=" ;"; }
+    }catch(ParseException x){
+        despliegaError("Error en la inicializacion del ciclo PARA");
+        Token t;
+        do {
+            t = getNextToken();
+        } while (t.kind != PUNTOYCOMA);
+    }
+}
+
+/*
+condicion ::=
+*/
+void condicion():{
+    char tipoExpr;
+}{
+    try{
+        tipoExpr=expr()
+        {
+            if (tipoExpr==Simbolo.tipoIndefinido) {
+                despliegaError("Error en la condicion - tipos incompatibles");
+            } else {
+                if (tipoExpr!=Simbolo.tipoBooleano) {
+                    despliegaError("Error en la condicion - el resultado no es booleano");
+                }
+            }
+        }
+    }catch(ParseException x){
+        despliegaError("Error en la condicion usada");
+    }
+}
+
+/*
+condicion ::=
+*/
+void condicionPARA():{}
+{
+    try{
+        { cadSalida+=" "; }
+        condicion()
+        <PUNTOYCOMA> { cadSalida+=" ; "; }
+    }catch(ParseException x){
+        despliegaError("Error en la condicion del ciclo PARA");
+        Token t;
+        do {
+            t = getNextToken();
+        } while (t.kind != PUNTOYCOMA);
+    }
+}
+
+/*
+cicloPara ::=
+*/
+void cicloPara():{
+    Simbolo s;
+}{
+    try{
+        <PARA> <PAREN_ABRE> { cadSalida+=nuevaLinea()+" for ("; }
+                inicializacionPARA()
+                condicionPARA()
+                asignacionBasica()
+                <PAREN_CIERRA>
+                <LLAVE_ABRE> { cadSalida+=" ){"; nivelAnidamiento++; }
+                cuerpo()
+                <LLAVE_CIERRA> { nivelAnidamiento--; cadSalida+=nuevaLinea()+" }";}
+    }catch(ParseException x){
+        despliegaError("Error en la estructura de repeticion PARA");
+        Token t;
+        do {
+            t = getNextToken();
+        } while (t.kind != LLAVE_CIERRA);
+    }
+}
+
+/*
+cicloMientras ::=
+*/
+void cicloMientras():{
+}{
+    try{
+        <MIENTRAS> <PAREN_ABRE> { cadSalida+=nuevaLinea()+" while ( "; }
+        condicion()
+        <PAREN_CIERRA> <LLAVE_ABRE> { cadSalida+=" ){"; nivelAnidamiento++; }
+        cuerpo()
+        <LLAVE_CIERRA> { nivelAnidamiento--; cadSalida+=nuevaLinea()+" }";}
+    }catch(ParseException x){
+        despliegaError("Error en la estructura de repeticion MIENTRAS");
+        Token t;
+        do {
+            t = getNextToken();
+        } while (t.kind != LLAVE_CIERRA);
+    }
+}
+
+/*
+cicloHagaMientras ::=
+*/
+void cicloHagaMientras():{
+}{
+    try{
+        <HAGA> <LLAVE_ABRE>  { cadSalida+=nuevaLinea()+" do { "; nivelAnidamiento++; }
+        cuerpo()
+        <LLAVE_CIERRA> <MIENTRAS> <PAREN_ABRE>  { nivelAnidamiento--;cadSalida+=nuevaLinea()+" }while( "; }
+        condicion()
+        <PAREN_CIERRA> <PUNTOYCOMA> { cadSalida+=" );"; }
+    }catch(ParseException x){
+        despliegaError("Error en la estructura de repeticion HAGA MIENTRAS");
+        Token t;
+        do {
+            t = getNextToken();
+        } while (t.kind != LLAVE_CIERRA);
+    }
+}
+
+/*
+repeticion ::=
+*/
+void repeticion():{
+}{
+    (
+          cicloPara()
+        | cicloMientras()
+        | cicloHagaMientras()
+    )
+}
+
+/*
+decision ::=
+*/
+void decision():{}{
+          decisionSimpleDoble()
+        | decisionMultiple()
+}
+
+
+/*
+decisionMultiple ::=
+*/
+void decisionMultiple():{
+    Simbolo s;
+    char tipoExpr;
+}{
+    try{
+        <SEGUN> <PAREN_ABRE> { cadSalida+=nuevaLinea()+" switch ( "; }
+        s=validarVariable()
+        {
+            if (s.tipo!=Simbolo.tipoEntero && s.tipo!=Simbolo.tipoCaracter) {
+                despliegaError("Error en la estructura de decision Multiple - La variable usada solo puede ser de tipo entero o caracter");
+            }
+            if (!s.inicializado) {
+                despliegaError("Error en la estructura de decision Multiple - A la variable "+s.nombre+" no se le ha asignado un valor");
+            }
+        }
+        <PAREN_CIERRA> <LLAVE_ABRE> { cadSalida+=" ){"; nivelAnidamiento++; }
+        (
+            <CASO> { cadSalida+=nuevaLinea()+" case "; }
+                    tipoExpr=expr() {
+                                        if (tipoExpr!=Simbolo.tipoEntero && tipoExpr!=Simbolo.tipoCaracter) {
+                                            despliegaError("Error en la estructura de decision Multiple - Solo se permiten enteros y caracteres");
+                                        }else {
+                                            if (s.tipo!=tipoExpr){
+                                                despliegaError("Error en la estructura de decision Multiple - La alternativa no es del mismo tipo de la variable comparada");
+                                            }
+                                        }
+                                    }
+                    <DOSPUNTOS> { cadSalida+=" : "; nivelAnidamiento++; } cuerpo()
+                    (<ROMPA> { cadSalida+=nuevaLinea()+" break;"; } <PUNTOYCOMA>)?
+                    { nivelAnidamiento--; }
+        )+
+        <OTROCASO> <DOSPUNTOS> { cadSalida+=nuevaLinea()+" default: "; nivelAnidamiento++; }
+        cuerpo()
+        <LLAVE_CIERRA> { nivelAnidamiento-=2; cadSalida+=nuevaLinea()+" }"; }
+    }catch(ParseException x){
+        despliegaError("Error en la estructura de decision HAGA MIENTRAS");
+        Token t;
+        do {
+            t = getNextToken();
+        } while (t.kind != LLAVE_CIERRA);
+    }
+}
+
+/*
+decisionSimpleDoble ::=
+*/
+void decisionSimpleDoble():{
+    char tipoExpr;
+}{
+    try{
+        <SI> <PAREN_ABRE> { cadSalida+=nuevaLinea()+" if ( "; }
+        tipoExpr=expr() {
+                            if (tipoExpr!=Simbolo.tipoBooleano) {
+                                despliegaError("Error en la estructura de decision Simple - La condicion no es valida");
+                            }
+                        }
+        <PAREN_CIERRA> <LLAVE_ABRE> { cadSalida+=" ){"; nivelAnidamiento++; }
+        cuerpo()
+        <LLAVE_CIERRA> { nivelAnidamiento--; cadSalida+=nuevaLinea()+" }"; }
+        (
+            <SINO> <LLAVE_ABRE> { cadSalida+=" else { "; nivelAnidamiento++; }
+            cuerpo()
+            <LLAVE_CIERRA> { nivelAnidamiento--; cadSalida+=nuevaLinea()+" }"; }
+        )?
+    }catch(ParseException x){
+        despliegaError("Error en la estructura de decision Simple");
+        Token t;
+        do {
+            t = getNextToken();
+        } while (t.kind != LLAVE_CIERRA);
+    }
+}
+
+/*
+asignacion ::=
+*/
+void asignacion():{
+}{
+    try{
+        { cadSalida+=nuevaLinea()+" "; }
+         asignacionBasica()
+        <PUNTOYCOMA> { cadSalida+=";"; }
+    }catch(ParseException x){
+        despliegaError("Error en la asignacion");
+        Token t;
+        do {
+            t = getNextToken();
+        } while (t.kind != PUNTOYCOMA);
+    }
+}
+
+
+/*
+asignacionBasica ::=
+*/
+void asignacionBasica():{
+    Simbolo s;
+    char tipoExpr;
+}{
+    try{
+        s=validarVariable()
+        (
+                <MASMAS> { cadSalida+="++"; }
+          | (
+                <IGUAL> { cadSalida+="="; }
+              | <MASIGUAL> { cadSalida+="+="; }
+              | <MENOSIGUAL> { cadSalida+="-="; }
+              | <PORIGUAL> { cadSalida+="*="; }
+              | <DIVIGUAL> { cadSalida+="/="; }
+            )
+            tipoExpr=expr()
+            {
+                if (s.tipo!=tipoExpr) {
+                    despliegaError("Error en la asignacion - No hay coincidencia de tipos");
+                }else{
+                    s.inicializado();
+                }
+            }
+        )
+    }catch(ParseException x){
+        despliegaError("Error en la asignacion Basica");
+    }
+}
+
+/*
+lectura ::=
+*/
+void lectura():{
+    Simbolo s;
+    char tipoExpr;
+}{
+    try{
+        { cadSalida+=nuevaLinea()+" "; }
+        s=validarVariable()
+        {
+            if (s.tipo==Simbolo.tipoBooleano) {
+                despliegaError("Error en la lectura - No se puede leer un dato booleano");
+            }
+        }
+        <IGUAL> <LEER> <PAREN_ABRE>
+        {
+            if (s.tipo==Simbolo.tipoEntero){
+                cadSalida+="=Integer.parseInt(JOptionPane.showInputDialog(";
+            } else {
+                if (s.tipo==Simbolo.tipoReal){
+                    cadSalida+="=Double.parseDouble(JOptionPane.showInputDialog(";
+                } else {
+                    cadSalida+="=JOptionPane.showInputDialog(";
+                }
+            }
+        }
+        tipoExpr=expr()
+        {
+            if (tipoExpr!=Simbolo.tipoCadena) {
+                despliegaError("Error en la lectura - No se pasa cadena a desplegar");
+            }else{
+                s.inicializado();
+            }
+        }
+        <PAREN_CIERRA> <PUNTOYCOMA>
+        {
+            if (s.tipo==Simbolo.tipoCadena) {
+                cadSalida+=");";
+            } else {
+                if (s.tipo==Simbolo.tipoEntero || s.tipo==Simbolo.tipoReal){
+                                cadSalida+="));";
+                }else{
+                    cadSalida+=").charAt(0);";
+                }
+            }
+        }
+    }catch(ParseException x){
+        despliegaError("Error en la lectura");
+        Token t;
+        do {
+            t = getNextToken();
+        } while (t.kind != PUNTOYCOMA);
+    }
+}
+
+/*
+impresion ::=
+*/
+void impresion():{
+    char tipoExpr;
+}{
+    try{
+        <IMPRIMIR> <PAREN_ABRE> { cadSalida+=nuevaLinea()+" JOptionPane.showMessageDialog(null,"; }
+        tipoExpr=expr() {
+                            if (tipoExpr!=Simbolo.tipoCadena) {
+                                despliegaError("Error en la impresion - No se pasa cadena a desplegar");
+                            }
+                        }
+        <PAREN_CIERRA> <PUNTOYCOMA> { cadSalida+=");"; }
+    }catch(ParseException x){
+        despliegaError("Error en la impresion");
+        Token t;
+        do {
+            t = getNextToken();
+        } while (t.kind != PUNTOYCOMA);
+    }
+}
+
+/*
+cierre ::=
+*/
+void cierre():{}{
+    try {
+        <LLAVE_CIERRA> {cadSalida+=nuevaLinea()+" }";}
+    }catch(ParseException x){
+        despliegaError("Falta llave de cierre del metodo principal");
+        Token t;
+        do
+        {
+            t = getNextToken();
+        }while (t.kind != EOF);
+    }
+}
+
+/*
+expr ::=
+*/
+char expr():{
+    char t1, t2;
+}{
+    t1=expr1() ( <OR>  {cadSalida+="||";} t2=expr1() { t1=tipoOR_AND(t1, t2); })* { return t1; }
+}
+
+/*
+expr1 ::=
+*/
+char expr1():{
+    char t1, t2;
+}{
+    t1=expr2() ( <AND>  {cadSalida+="&&";} t2=expr2() { t1=tipoOR_AND(t1, t2); })* { return t1; }
+}
+
+/*
+expr2 ::=
+*/
+char expr2():{
+    char t1, t2;
+}{
+    t1=expr3()  (
+                    (
+                          <IGUALLOGICO>
+                            {
+                                if (t1!=Simbolo.tipoCadena)
+                                    cadSalida+="==";
+                                else{
+                                    cerrarComparacion=true;
+                                    cadSalida+=".equals(";
+                                }
+                            }
+                        | <DIFERENTELOGICO>  {cadSalida+="!=";}
+                    )
+                    t2=expr3() { t1=tipoIGUAL_DIFERENTE(t1, t2); }
+                )*
+    { return t1; }
+}
+
+/*
+expr3 ::=
+*/
+char expr3():{
+    char t1, t2;
+}{
+    t1=expr4()  (
+                    (
+                          <MAYORIGUAL>  {cadSalida+=">=";}
+                        | <MENORIGUAL>  {cadSalida+="<=";}
+                        | <MAYOR>  {cadSalida+=">";}
+                        | <MENOR>  {cadSalida+="<";}
+                    )
+                    t2=expr4() { t1=tipoIGUAL_DIFERENTE(t1, t2); }
+                )*
+    { return t1; }
+}
+
+/*
+expr4 ::=
+*/
+char expr4():{
+    char t1, t2;
+}{
+    t1=expr5()  (
+                    (
+                          <MAS>  {cadSalida+="+";}
+                        | <MENOS>  {cadSalida+="-";}
+                    )
+                    t2=expr5() { t1=tipoSUMA_RESTA(t1, t2); }
+                )*
+    { return t1; }
+}
+
+/*
+expr5 ::=
+*/
+char expr5():{
+    char t1, t2;
+}{
+    t1=expr6()  (
+                    (
+                          <POR>  {cadSalida+="*";}
+                        | <DIVIDIDO>  {cadSalida+="/";}
+                        | <MODULO>  {cadSalida+="%";}
+                    )
+                    t2=expr6() { t1=tipoMULTIPLICA_DIVIDA(t1, t2); }
+                )*
+    { return t1; }
+}
+
+
+/*
+expr6 ::=
+*/
+char expr6():{
+    Simbolo simbol;
+    int i;
+    double r;
+    boolean b;
+    char c, c1, c2;
+    String s;
+    char t1, t2;
+}{
+    (
+        ("-" { {cadSalida+="-";}; } )?
+        (
+              simbol=validarVariable()
+                {
+                    if (!simbol.inicializado) {
+                        despliegaError("Error en la expresion - A la variable "+simbol.nombre+" no se le ha asignado un valor");
+                    }
+                    return simbol.tipo;
+                }
+            | i=entero() { return Simbolo.tipoEntero; }
+            | r=real() { return Simbolo.tipoReal; }
+            | "raiz" { cadSalida+="Math.sqrt"; }
+              <PAREN_ABRE> { cadSalida+="("; }
+                    c=expr()
+              <PAREN_CIERRA> { cadSalida+=")";
+                            if (c==Simbolo.tipoReal || c==Simbolo.tipoEntero)
+                                return Simbolo.tipoReal;
+                            else return Simbolo.tipoIndefinido; }
+            | "seno" { cadSalida+="Math.sin"; }
+              <PAREN_ABRE> { cadSalida+="("; }
+                    c=expr()
+              <PAREN_CIERRA> { cadSalida+=")";
+                            if (c==Simbolo.tipoReal) return c;
+                            else return Simbolo.tipoIndefinido; }
+            | "absoluto" { cadSalida+="Math.abs"; }
+              <PAREN_ABRE> { cadSalida+="("; }
+                    c=expr()
+              <PAREN_CIERRA> { cadSalida+=")";
+                            if ( c==Simbolo.tipoReal || c==Simbolo.tipoEntero ) return c;
+                            else return Simbolo.tipoIndefinido; }
+            | "potencia" { cadSalida+="Math.pow"; }
+              <PAREN_ABRE> { cadSalida+="("; }
+                    c1=expr()
+                    ","  { cadSalida+=","; }
+                    c2=expr()
+              <PAREN_CIERRA> { cadSalida+=")";
+                            if (tipoMULTIPLICA_DIVIDA(c1,c2)==Simbolo.tipoReal)
+                                return Simbolo.tipoReal;
+                            else return Simbolo.tipoIndefinido; }
+            |
+              <PAREN_ABRE> { cadSalida+="("; }
+                    c=expr()
+              <PAREN_CIERRA> { cadSalida+=")"; return c; }
+        )
+        | b=booleano() { return Simbolo.tipoBooleano; }
+        | c=caracter() { return Simbolo.tipoCaracter; }
+        | s=cadena()
+            {
+                if (cerrarComparacion){
+                    cadSalida+=")";
+                }
+                cerrarComparacion=false;
+                return Simbolo.tipoCadena;
+            }
+    )
+}
+
+int entero():{}{
+     <ENTERO> { cadSalida+=token.image; return Integer.parseInt(token.image); }
+}
+
+double real():{}{
+     <REAL> { cadSalida+=token.image; return Double.parseDouble(token.image); }
+}
+
+boolean booleano():{}{
+     <BOOLEANO> { cadSalida+=token.image; return Boolean.parseBoolean(token.image); }
+}
+
+char caracter():{}{
+     <CARACTER> { cadSalida+=token.image; return token.image.charAt(1); }
+}
+
+String cadena():{}{
+     <CADENA> {  cadSalida+=token.image; return token.image.substring(1, token.image.length()-1 ); }
+}
+
+String comentario():{}{
+     <COMENTARIO> {  cadSalida+=token.image+"\n"; return token.image; }
+}
+
+SKIP : {
+     <ILEGAL: (~["A"-"Z","a"-"z"])>
+}
