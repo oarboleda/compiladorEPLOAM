@@ -1,0 +1,15 @@
+algoritmo EntradaMala {
+    principal(){
+	entero num1=num2=1.5;
+ 	real decimal1=5;
+	cadena elMensaje="La sumatoria fue baja";
+
+        para (entero cont=1; cont<=num1; cont++){
+          sum+=cont;
+        }
+       
+        si (decimal2+15){
+          imprimir(elMensaje+" decimal fue "+decimal1);
+        }
+    }
+}

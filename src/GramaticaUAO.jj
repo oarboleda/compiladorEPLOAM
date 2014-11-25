@@ -1,3 +1,9 @@
+/*
+    EPLOAM v2
+    Fecha: Nov 25 de 2014
+    Autor: Orlando Arboleda Molina
+    Actualizacion: Se permite ejecución en diferentes sistemas operativos
+*/
 PARSER_BEGIN(EPLOAM)
 import java.util.*;
 import java.io.*;
@@ -36,8 +42,17 @@ public class EPLOAM{
                     System.out.println("<tr bgcolor=\"#C0C0C0\"><th width=\"10%\">Linea</th><th width=\"10%\">Columna</th><th>Descripcion</th></tr>\n");
                 }
                 nombreArchivoEntrada = args[0];
-                archivo=new File(args[1]+"\\"+nombreArchivoEntrada+".epl");
-                archivoSalida=args[2]+"\\"+args[0]+".java";
+                
+                // para ejecucion en diferentes sistemas operativos
+                if (System.getProperty("file.separator").equals("\\")){
+                    archivo=new File(args[1]+"\\"+nombreArchivoEntrada+".epl");
+                    archivoSalida=args[2]+"\\"+args[0]+".java";
+                }
+                else{
+                    archivo=new File(args[1]+"/"+nombreArchivoEntrada+".epl");
+                    archivoSalida=args[2]+"/"+args[0]+".java";
+                }
+
                 fr = new FileReader (archivo);
                 new EPLOAM(fr).gramatica();
                 if (nroErrores>0){
@@ -219,14 +234,14 @@ TOKEN :
      | <SINO: "sino">
      | <SEGUN: "segun">
      | <CASO: "caso">
-     | <OTROCASO: "default">
-     | <ROMPA: "break">
+     | <OTROCASO: "otroCaso">
+     | <ROMPA: "termina">
 
      | <PARA: "para">
      | <MIENTRAS: "mientras">
      | <HAGA: "haga">
 
-     | <BOOLEANO: ("true" | "false")>
+     | <BOOLEANO: ("verdadero" | "falso")>
      | <ID: <LETRA>("_"|<LETRA>|<DIGITO>)*>
      | <ENTERO: (<DIGITO>)+>
      | <REAL: <ENTERO>"."<ENTERO>>

@@ -1,0 +1,35 @@
+/* 
+   Este algoritmo muestra algunas de las estructuras
+   Que pueden ser usadas con EPLOAM
+*/
+algoritmo PruebaEstructuras {
+    principal(){
+        entero num1=3,num2,sum=0;
+        booleano bol1=verdadero;
+        real decimal1=5.0;
+        caracter letrica='a';
+        cadena elMensaje="La sumatoria fue baja";
+
+        para (entero cont=1; cont<=num1; cont++){
+          haga{
+             num2=leer("digite un numero");
+             sum+=num2;
+          }mientras(num2<1 || num2>3);
+          decimal1+=1.5;
+          segun (num2){
+             caso 1: imprimir("solo digito el uno"); termina;
+             caso 2: imprimir("solo digito el dos");
+             otroCaso: imprimir("no se digito ni uno ni dos");
+          }
+        }
+         
+        si (sum<5 || bol1==verdadero){
+          imprimir(elMensaje+"decimal fue "+decimal1);
+        }sino{
+          mientras(num1>0){
+            imprimir("La sumatoria fue alta. Voy en "+num1);
+            num1=num1-1;
+          }
+        }        
+    }
+}
